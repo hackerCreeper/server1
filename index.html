@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hacking Terminal</title>
+    <style>
+        body {
+            background-color: #000000;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', Courier, monospace; 
+            color: #00ff00;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5); 
+            overflow-x: hidden;
+        }
+        pre { font-size: 14px; line-height: 1.1; margin: 0; }
+        #output { margin-top: 20px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; }
+        .input-line { display: flex; align-items: center; margin-top: 15px; font-size: 16px; }
+        .prompt { color: #00ff00; margin-right: 10px; user-select: none; }
+        input {
+            background: transparent;
+            border: none;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            outline: none;
+            flex-grow: 1;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <pre>
+ ___  ___  ________  ________  ___  __    ___  ________   ________     
+|\  \|\  \|\   __  \|\   ____\|\  \|\  \ |\  \|\   ___  \|\   ____\    
+\ \  \\\  \ \  \|\  \ \  \___|\ \  \/  /|\ \  \ \  \\ \  \ \  \___|    
+ \ \   __  \ \   __  \ \  \    \ \   ___  \ \  \ \  \\ \  \ \  \  ___  
+  \ \  \ \  \ \  \ \  \ \  \____\ \  \\ \  \ \  \ \  \\ \  \ \  \|\  \ 
+   \ \__\ \__\ \__\ \__\ \_______\ \__\\ \__\ \__\ \__\\ \__\ \_______\
+    \|__|\|__|\|__|\|__|\|_______|\|__| \|__|\|__|\|__| \|__|\|_______|
+    </pre>
+
+    <div id="output">
+        <div style="color: #ff3333;">[SYSTEM RESTRICTED] Credentials required to initialize shell.</div>
+    </div>
+
+    <div class="input-line">
+        <span class="prompt" id="promptText">Enter Password:</span>
+        <input type="password" id="cmdInput" autofocus autocomplete="off" spellcheck="false">
+    </div>
+
+    <script>
+        const input = document.getElementById('cmdInput');
+        const output = document.getElementById('output');
+        const promptText = document.getElementById('promptText');
+        
+        let isAuthorized = false;
+
+        document.addEventListener('click', () => input.focus());
+
+        input.addEventListener('keydown', async function(e) {
+            if (e.key !== 'Enter') return;
+
+            const command = input.value;
+            input.value = '';
+
+            if (command.trim() === '' && isAuthorized) return;
+
+            logCommandLineToHistory(command);
+
+            if (command.trim().toLowerCase() === 'clear') {
+                output.innerHTML = '';
+                return;
+            }
+
+            try {
+                const responseText = await sendCommandToServer(command);
+                handleServerResponse(responseText);
+            } catch (err) {
+                output.innerHTML += `<div style="color: #ff0000;">System Error: Network connection severed.</div>`;
+            }
+
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        function logCommandLineToHistory(command) {
+            if (!isAuthorized) {
+                output.innerHTML += `<div><span style="color: #00aa00;">system@gatekeeper:~#</span> *********</div>`;
+            } else {
+                output.innerHTML += `<div><span style="color: #00aa00;">root@localhost:~#</span> ${command}</div>`;
+            }
+        }
+
+        async function sendCommandToServer(command) {
+            const formData = new FormData();
+            formData.append('command', command);
+
+            const response = await fetch('/api/cmd', {
+                method: 'POST',
+                body: formData
+            });
+            return await response.text();
+        }
+
+        function handleServerResponse(text) {
+            if (text === "SHUTDOWN") {
+                output.innerHTML += `<div style="color: #ff3333;">Halting kernel threads... Goodbye.</div>`;
+                setTimeout(() => {
+                    window.close();
+                    output.innerHTML += `<div style="color: #ffaa00;">[TERMINATED] Go server shut down successfully. You may safely exit this tab manually.</div>`;
+                }, 500);
+                return;
+            }
+
+            if (text === "AUTH_SUCCESS") {
+                isAuthorized = true;
+                input.type = "text";
+                promptText.innerText = "root@localhost:~#";
+                output.innerHTML = `<div style="color: #00ff00;">[GRANTED] Access levels set to root. Terminal interactive.</div><div>Type 'help' to review basic access pathways.</div>`;
+                return;
+            }
+
+            if (text === "AUTH_FAIL") {
+                output.innerHTML += `<div style="color: #ff3333;">Access Denied: Invalid security signature.</div>`;
+                return;
+            }
+
+            if (text === "LOGOUT") {
+                isAuthorized = false;
+                input.type = "password";
+                promptText.innerText = "Enter Password:";
+                output.innerHTML = `<div style="color: #ff3333;">[REVOKED] Session cleared. Interface locked down.</div>`;
+                return;
+            }
+            
+            if (text) {
+                output.innerHTML += `<div>${text}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
